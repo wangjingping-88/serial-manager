@@ -1,0 +1,10 @@
+node_modules/
+.npm-cache/
+.electron-cache/
+.electron-builder-cache/
+dist/
+release/
+out/
+data/*.json
+.learnings/
+*.log

@@ -1,0 +1,49 @@
+{
+  "name": "serial-notification",
+  "version": "0.1.0",
+  "description": "串口插拔通知和自定义命名工具",
+  "main": "src/main.js",
+  "private": true,
+  "author": "UCCHIP",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js",
+    "icon": "node tools/generate-icon.js",
+    "dist": "npm run dist:zip",
+    "dist:zip": "npm run icon && electron-builder --win dir --x64 && powershell -NoProfile -ExecutionPolicy Bypass -File tools/package-folder.ps1",
+    "dist:portable": "npm run icon && electron-builder --win portable --x64"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.ucchip.serial-notification",
+    "productName": "串口通知工具",
+    "copyright": "Copyright © 2026 UCCHIP",
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "icon": "assets/app.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "串口通知工具-${version}-便携版.exe"
+    }
+  }
+}
