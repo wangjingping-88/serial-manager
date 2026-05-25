@@ -6,6 +6,7 @@ const path = require('path');
 const FAST_POLL_INTERVAL_MS = 500;
 const FULL_REFRESH_INTERVAL_MS = 5000;
 const EVENT_DEDUPE_MS = 1200;
+const REMOVAL_CONFIRM_POLLS = 2;
 const ICON_PATH = path.join(__dirname, '..', 'assets', 'app.ico');
 
 let mainWindow;
@@ -17,6 +18,8 @@ let portInfoCache = new Map();
 let recentEventKeys = new Map();
 let activeNotifications = new Map();
 let fastKnownPortNames = new Set();
+let missingPortCounts = new Map();
+let presenceInitialized = false;
 let isReadyForNotifications = false;
 let fastPollTimer;
 let fullRefreshTimer;
@@ -186,7 +189,12 @@ function queryFastPortNames() {
       'reg.exe',
       ['query', 'HKLM\\HARDWARE\\DEVICEMAP\\SERIALCOMM'],
       { windowsHide: true, timeout: 1200, maxBuffer: 256 * 1024 },
-      (_error, stdout) => {
+      (error, stdout) => {
+        if (error || !stdout.trim()) {
+          resolve(null);
+          return;
+        }
+
         const matches = String(stdout || '').match(/\bCOM\d+\b/g) || [];
         resolve(sortPortNames(new Set(matches)));
       }
@@ -355,15 +363,49 @@ async function refreshFastPortNames() {
   fastQueryInFlight = true;
   try {
     const nextNames = await queryFastPortNames();
+    if (!nextNames) {
+      return;
+    }
+
     const nextSet = new Set(nextNames);
+    if (!presenceInitialized) {
+      fastKnownPortNames = nextSet;
+      presenceInitialized = true;
+      return;
+    }
+
     const added = nextNames.filter((name) => !fastKnownPortNames.has(name));
-    const removed = [...fastKnownPortNames].filter((name) => !nextSet.has(name));
+    const removed = [];
+
+    for (const portName of nextNames) {
+      missingPortCounts.delete(portName);
+    }
+
+    for (const portName of fastKnownPortNames) {
+      if (nextSet.has(portName)) {
+        continue;
+      }
+
+      const missCount = (missingPortCounts.get(portName) || 0) + 1;
+      missingPortCounts.set(portName, missCount);
+      if (missCount >= REMOVAL_CONFIRM_POLLS) {
+        removed.push(portName);
+      }
+    }
 
     if (added.length === 0 && removed.length === 0) {
       return;
     }
 
-    fastKnownPortNames = nextSet;
+    for (const portName of removed) {
+      fastKnownPortNames.delete(portName);
+      missingPortCounts.delete(portName);
+    }
+
+    for (const portName of added) {
+      fastKnownPortNames.add(portName);
+      missingPortCounts.delete(portName);
+    }
 
     for (const portName of removed) {
       addEvent('detached', getBestKnownPort(portName));
@@ -395,12 +437,26 @@ async function refreshPorts({ notifyDiff = false } = {}) {
   queryInFlight = true;
   try {
     const nextPorts = await querySerialPorts();
+    if (nextPorts.length === 0 && (ports.length > 0 || fastKnownPortNames.size > 0)) {
+      sendSnapshot();
+      return createSnapshot();
+    }
+
     cachePortInfo(nextPorts);
     if (notifyDiff) {
       diffAndApply(nextPorts);
     } else {
-      ports = nextPorts;
-      fastKnownPortNames = new Set(nextPorts.map((port) => port.portName));
+      const nextMap = new Map(nextPorts.map((port) => [port.portName, port]));
+      const knownNames = presenceInitialized
+        ? new Set(fastKnownPortNames)
+        : new Set(nextPorts.map((port) => port.portName));
+
+      ports = sortPorts([...knownNames].map((portName) => nextMap.get(portName) || getBestKnownPort(portName)));
+      fastKnownPortNames = new Set(ports.map((port) => port.portName));
+      presenceInitialized = true;
+      for (const portName of fastKnownPortNames) {
+        missingPortCounts.delete(portName);
+      }
       sendSnapshot();
     }
   } finally {
@@ -564,6 +620,13 @@ app.whenReady().then(async () => {
   loadAliases();
   createWindow();
   createTray();
+  const initialFastNames = await queryFastPortNames();
+  if (initialFastNames) {
+    fastKnownPortNames = new Set(initialFastNames);
+    presenceInitialized = true;
+    ports = sortPorts(initialFastNames.map(createPlaceholderPort));
+    sendSnapshot();
+  }
   await refreshPorts({ notifyDiff: false });
   isReadyForNotifications = true;
   startPolling();
