@@ -140,11 +140,22 @@ h2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
   gap: 14px;
+  align-items: start;
 }
 
 .panel {
   min-height: 410px;
   padding: 18px;
+}
+
+.event-panel {
+  position: sticky;
+  top: 14px;
+  height: min(620px, calc(100vh - 226px));
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .panel-heading {
@@ -396,15 +407,34 @@ h2 {
 
 .events-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.events-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.events-list::-webkit-scrollbar-track {
+  background: rgba(221, 214, 197, 0.32);
+  border-radius: 999px;
+}
+
+.events-list::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(255, 253, 247, 0.9);
+  border-radius: 999px;
+  background: rgba(111, 113, 107, 0.45);
 }
 
 .event-item {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 9px;
   align-items: start;
-  padding: 12px;
+  padding: 10px;
   border: 1px solid #e6dec9;
   border-radius: 8px;
   background: #fffaf0;
@@ -412,8 +442,8 @@ h2 {
 }
 
 .event-mark {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   display: inline-grid;
   place-items: center;
   border-radius: 999px;
@@ -437,7 +467,7 @@ h2 {
 }
 
 .event-item strong {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .event-item span:last-child {
@@ -462,6 +492,11 @@ h2 {
 
 .empty-state.compact {
   min-height: 160px;
+}
+
+.event-panel .empty-state.compact {
+  flex: 1;
+  min-height: 0;
 }
 
 [hidden] {
@@ -513,6 +548,11 @@ h2 {
   .summary-grid,
   .content-grid {
     grid-template-columns: 1fr;
+  }
+
+  .event-panel {
+    position: static;
+    height: min(480px, calc(100vh - 160px));
   }
 
   .metric-wide {

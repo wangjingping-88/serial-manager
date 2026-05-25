@@ -322,7 +322,7 @@ function cancelAliasEdit() {
 }
 
 function renderEvents() {
-  elements.eventsList.replaceChildren(...state.events.slice(0, 18).map(createEventItem));
+  elements.eventsList.replaceChildren(...state.events.map(createEventItem));
 }
 
 function createEventItem(event, index) {
