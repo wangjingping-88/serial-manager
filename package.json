@@ -11,6 +11,7 @@
     "icon": "node tools/generate-icon.js",
     "dist": "npm run dist:zip",
     "dist:zip": "npm run icon && electron-builder --win dir --x64 && powershell -NoProfile -ExecutionPolicy Bypass -File tools/package-folder.ps1",
+    "dist:setup": "npm run icon && electron-builder --win nsis --x64 --config.directories.output=dist/setup",
     "dist:portable": "npm run icon && electron-builder --win portable --x64"
   },
   "devDependencies": {
@@ -41,6 +42,15 @@
           ]
         }
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "串口通知工具",
+      "artifactName": "串口通知工具-${version}-setup.${ext}"
     },
     "portable": {
       "artifactName": "串口通知工具-${version}-便携版.exe"
