@@ -19,7 +19,8 @@
 html,
 body {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
   color: var(--ink);
   background:
     linear-gradient(135deg, rgba(240, 180, 41, 0.16), transparent 34%),
@@ -36,8 +37,12 @@ input {
 
 .shell {
   width: min(1180px, calc(100vw - 40px));
+  height: 100vh;
   margin: 0 auto;
-  padding: 28px 0 32px;
+  padding: 28px 0 18px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .topbar {
@@ -104,9 +109,16 @@ h2 {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 2fr;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 14px;
   margin-bottom: 14px;
+}
+
+.metric-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  min-width: 0;
 }
 
 .metric,
@@ -140,21 +152,20 @@ h2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
+  min-height: 0;
+  flex: 1;
 }
 
 .panel {
-  min-height: 410px;
   padding: 18px;
 }
 
+.port-panel,
 .event-panel {
-  position: sticky;
-  top: 14px;
-  height: min(620px, calc(100vh - 226px));
-  min-height: 360px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -180,13 +191,37 @@ h2 {
 }
 
 .ports-list {
+  flex: 1;
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.ports-list::-webkit-scrollbar,
+.events-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ports-list::-webkit-scrollbar-track,
+.events-list::-webkit-scrollbar-track {
+  background: rgba(221, 214, 197, 0.32);
+  border-radius: 999px;
+}
+
+.ports-list::-webkit-scrollbar-thumb,
+.events-list::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(255, 253, 247, 0.9);
+  border-radius: 999px;
+  background: rgba(111, 113, 107, 0.45);
 }
 
 .scan-loader {
-  min-height: 260px;
+  flex: 1;
+  min-height: 0;
   display: grid;
   place-items: center;
   align-content: center;
@@ -406,27 +441,13 @@ h2 {
 }
 
 .events-list {
+  flex: 1;
   display: grid;
   gap: 8px;
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
   scrollbar-gutter: stable;
-}
-
-.events-list::-webkit-scrollbar {
-  width: 8px;
-}
-
-.events-list::-webkit-scrollbar-track {
-  background: rgba(221, 214, 197, 0.32);
-  border-radius: 999px;
-}
-
-.events-list::-webkit-scrollbar-thumb {
-  border: 2px solid rgba(255, 253, 247, 0.9);
-  border-radius: 999px;
-  background: rgba(111, 113, 107, 0.45);
 }
 
 .event-item {
@@ -477,7 +498,8 @@ h2 {
 }
 
 .empty-state {
-  min-height: 220px;
+  flex: 1;
+  min-height: 0;
   display: grid;
   place-items: center;
   align-content: center;
@@ -550,9 +572,8 @@ h2 {
     grid-template-columns: 1fr;
   }
 
-  .event-panel {
-    position: static;
-    height: min(480px, calc(100vh - 160px));
+  .metric-pair {
+    grid-template-columns: 1fr;
   }
 
   .metric-wide {
