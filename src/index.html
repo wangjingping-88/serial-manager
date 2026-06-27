@@ -3,15 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>串口通知工具</title>
+    <title>串口管理工具</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="shell">
       <header class="topbar">
         <section>
-          <p class="eyebrow">Serial Port Watcher</p>
-          <h1>串口通知工具</h1>
+          <p class="eyebrow">Serial Port Manager</p>
+          <h1>串口管理工具</h1>
         </section>
         <section class="actions" aria-label="窗口操作">
           <button id="refreshButton" class="icon-button" title="立即刷新" aria-label="立即刷新">
@@ -46,15 +46,22 @@
             <h2>串口列表</h2>
             <span id="scanStatus" class="status-pill">监听中</span>
           </div>
-          <div id="scanLoader" class="scan-loader" role="status" aria-live="polite">
-            <span class="scan-ring"></span>
-            <strong>正在扫描串口</strong>
-            <span>正在读取设备列表和占用状态...</span>
-          </div>
-          <div id="portsList" class="ports-list"></div>
-          <div id="emptyPorts" class="empty-state">
-            <strong>未发现串口</strong>
-            <span>插入 USB 串口设备后会自动显示。</span>
+          <div class="ports-workspace">
+            <div class="groups-strip" aria-label="串口分组">
+              <div id="groupsBar" class="groups-bar"></div>
+            </div>
+            <div class="port-list-area">
+              <div id="scanLoader" class="scan-loader" role="status" aria-live="polite">
+                <span class="scan-ring"></span>
+                <strong>正在扫描串口</strong>
+                <span>正在读取设备列表和占用状态...</span>
+              </div>
+              <div id="portsList" class="ports-list"></div>
+              <div id="emptyPorts" class="empty-state">
+                <strong>未发现串口</strong>
+                <span>插入 USB 串口设备后会自动显示。</span>
+              </div>
+            </div>
           </div>
         </section>
 

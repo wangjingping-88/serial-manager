@@ -8,10 +8,12 @@ const FULL_REFRESH_INTERVAL_MS = 5000;
 const EVENT_DEDUPE_MS = 1200;
 const REMOVAL_CONFIRM_POLLS = 2;
 const ICON_PATH = path.join(__dirname, '..', 'assets', 'app.ico');
+const GROUP_COLORS = ['#138a8a', '#1f9d55', '#c17900', '#ca3d32', '#4f6fbd', '#8a5fbf', '#ad5d20', '#4f7c52'];
 
 let mainWindow;
 let tray;
 let aliases = {};
+let groupStore = { groups: [], assignments: {}, orders: {} };
 let ports = [];
 let events = [];
 let portInfoCache = new Map();
@@ -42,6 +44,10 @@ function getAliasesFile() {
   return path.join(getDataDir(), 'port-aliases.json');
 }
 
+function getGroupsFile() {
+  return path.join(getDataDir(), 'port-groups.json');
+}
+
 function ensureDataDir() {
   fs.mkdirSync(getDataDir(), { recursive: true });
 }
@@ -60,8 +66,77 @@ function saveAliases() {
   fs.writeFileSync(getAliasesFile(), JSON.stringify(aliases, null, 2), 'utf8');
 }
 
+function loadGroups() {
+  ensureDataDir();
+  try {
+    const parsed = JSON.parse(fs.readFileSync(getGroupsFile(), 'utf8'));
+    groupStore = normalizeGroupStore(parsed);
+  } catch {
+    groupStore = { groups: [], assignments: {}, orders: {} };
+  }
+}
+
+function saveGroups() {
+  ensureDataDir();
+  fs.writeFileSync(getGroupsFile(), JSON.stringify(groupStore, null, 2), 'utf8');
+}
+
 function normalizeAlias(value) {
   return String(value || '').trim().slice(0, 80);
+}
+
+function normalizeGroupStore(value) {
+  const sourceGroups = Array.isArray(value && value.groups) ? value.groups : [];
+  const groups = [];
+  const seen = new Set();
+
+  for (const item of sourceGroups) {
+    const id = String(item && item.id ? item.id : '').trim();
+    const name = normalizeGroupName(item && item.name);
+    if (!id || !name || seen.has(id)) {
+      continue;
+    }
+
+    groups.push({ id, name, color: normalizeGroupColor(item && item.color) });
+    seen.add(id);
+  }
+
+  const validIds = new Set(groups.map((group) => group.id));
+  const assignments = {};
+  const sourceAssignments = value && typeof value.assignments === 'object' ? value.assignments : {};
+  for (const [key, groupId] of Object.entries(sourceAssignments)) {
+    const normalizedKey = String(key || '').trim();
+    const normalizedGroupId = String(groupId || '').trim();
+    if (normalizedKey && validIds.has(normalizedGroupId)) {
+      assignments[normalizedKey] = normalizedGroupId;
+    }
+  }
+
+  const orders = {};
+  const sourceOrders = value && typeof value.orders === 'object' ? value.orders : {};
+  const allowedOrderKeys = new Set(['all', 'ungrouped', ...groups.map((group) => group.id)]);
+  for (const [orderKey, values] of Object.entries(sourceOrders)) {
+    if (!allowedOrderKeys.has(orderKey) || !Array.isArray(values)) {
+      continue;
+    }
+
+    orders[orderKey] = [...new Set(values.map((item) => String(item || '').trim()).filter(Boolean))];
+  }
+
+  return { groups, assignments, orders };
+}
+
+function normalizeGroupName(value) {
+  return String(value || '').trim().slice(0, 24);
+}
+
+function normalizeGroupColor(value) {
+  const color = String(value || '').trim();
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : GROUP_COLORS[0];
+}
+
+function createGroupId() {
+  return `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function createTrayImage() {
@@ -70,6 +145,27 @@ function createTrayImage() {
 
 function getAliasForPort(port) {
   return aliases[port.deviceKey] || aliases[`port:${port.portName}`] || '';
+}
+
+function getGroupIdForPort(port) {
+  const groupId = groupStore.assignments[port.deviceKey] || groupStore.assignments[`port:${port.portName}`] || '';
+  return groupStore.groups.some((group) => group.id === groupId) ? groupId : '';
+}
+
+function getGroupForPort(port) {
+  const groupId = getGroupIdForPort(port);
+  return groupStore.groups.find((group) => group.id === groupId) || null;
+}
+
+function decoratePort(port) {
+  const group = getGroupForPort(port);
+  return {
+    ...port,
+    alias: getAliasForPort(port),
+    groupId: group ? group.id : '',
+    groupName: group ? group.name : '',
+    groupColor: group ? group.color : ''
+  };
 }
 
 function getDisplayLabel(port) {
@@ -270,7 +366,9 @@ function createPlaceholderPort(portName) {
 
 function createSnapshot() {
   return {
-    ports: ports.map((port) => ({ ...port, alias: getAliasForPort(port) })),
+    ports: ports.map(decoratePort),
+    groups: groupStore.groups.map((group) => ({ ...group })),
+    orders: Object.fromEntries(Object.entries(groupStore.orders).map(([key, value]) => [key, [...value]])),
     events,
     updatedAt: new Date().toISOString()
   };
@@ -499,11 +597,11 @@ function startPolling() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1040,
-    height: 720,
-    minWidth: 760,
+    width: 1180,
+    height: 760,
+    minWidth: 920,
     minHeight: 560,
-    title: '串口通知工具',
+    title: '串口管理工具',
     backgroundColor: '#f5f1e7',
     icon: ICON_PATH,
     autoHideMenuBar: true,
@@ -560,7 +658,7 @@ async function promptCloseAction() {
 
 function createTray() {
   tray = new Tray(createTrayImage());
-  tray.setToolTip('串口通知工具');
+  tray.setToolTip('串口管理工具');
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '显示窗口', click: showWindow },
     { label: '立即刷新', click: () => refreshPorts({ notifyDiff: false }) },
@@ -608,6 +706,105 @@ ipcMain.handle('serial:save-alias', (_event, deviceKey, alias) => {
   sendSnapshot();
   return createSnapshot();
 });
+ipcMain.handle('serial:save-group', (_event, group) => {
+  const id = String(group && group.id ? group.id : '').trim() || createGroupId();
+  const name = normalizeGroupName(group && group.name);
+  const color = normalizeGroupColor(group && group.color);
+  if (!name) {
+    return createSnapshot();
+  }
+
+  const index = groupStore.groups.findIndex((item) => item.id === id);
+  if (index >= 0) {
+    groupStore.groups[index] = { id, name, color };
+  } else {
+    groupStore.groups.push({ id, name, color });
+  }
+
+  saveGroups();
+  sendSnapshot();
+  return createSnapshot();
+});
+ipcMain.handle('serial:delete-group', (_event, groupId) => {
+  const id = String(groupId || '').trim();
+  if (!id) {
+    return createSnapshot();
+  }
+
+  groupStore.groups = groupStore.groups.filter((group) => group.id !== id);
+  delete groupStore.orders[id];
+  for (const [key, value] of Object.entries(groupStore.assignments)) {
+    if (value === id) {
+      delete groupStore.assignments[key];
+    }
+  }
+
+  saveGroups();
+  sendSnapshot();
+  return createSnapshot();
+});
+ipcMain.handle('serial:save-group-order', (_event, groupIds) => {
+  if (!Array.isArray(groupIds)) {
+    return createSnapshot();
+  }
+
+  const byId = new Map(groupStore.groups.map((group) => [group.id, group]));
+  const nextGroups = [];
+  const seen = new Set();
+  for (const rawId of groupIds) {
+    const id = String(rawId || '').trim();
+    if (!id || seen.has(id) || !byId.has(id)) {
+      continue;
+    }
+
+    nextGroups.push(byId.get(id));
+    seen.add(id);
+  }
+
+  for (const group of groupStore.groups) {
+    if (!seen.has(group.id)) {
+      nextGroups.push(group);
+    }
+  }
+
+  groupStore.groups = nextGroups;
+  saveGroups();
+  sendSnapshot();
+  return createSnapshot();
+});
+ipcMain.handle('serial:assign-group', (_event, deviceKey, portName, groupId) => {
+  const key = String(deviceKey || '').trim() || `port:${String(portName || '').trim()}`;
+  const portKey = String(portName || '').trim() ? `port:${String(portName || '').trim()}` : '';
+  const id = String(groupId || '').trim();
+  if (!key) {
+    return createSnapshot();
+  }
+
+  if (id && groupStore.groups.some((group) => group.id === id)) {
+    groupStore.assignments[key] = id;
+  } else {
+    delete groupStore.assignments[key];
+    if (portKey) {
+      delete groupStore.assignments[portKey];
+    }
+  }
+
+  saveGroups();
+  sendSnapshot();
+  return createSnapshot();
+});
+ipcMain.handle('serial:save-order', (_event, groupId, portKeys) => {
+  const key = String(groupId || 'all').trim() || 'all';
+  const allowedKeys = new Set(['all', 'ungrouped', ...groupStore.groups.map((group) => group.id)]);
+  if (!allowedKeys.has(key) || !Array.isArray(portKeys)) {
+    return createSnapshot();
+  }
+
+  groupStore.orders[key] = [...new Set(portKeys.map((item) => String(item || '').trim()).filter(Boolean))];
+  saveGroups();
+  sendSnapshot();
+  return createSnapshot();
+});
 ipcMain.handle('window:show', () => showWindow());
 ipcMain.handle('window:minimize-to-tray', () => {
   if (mainWindow) {
@@ -618,6 +815,7 @@ ipcMain.handle('window:minimize-to-tray', () => {
 app.whenReady().then(async () => {
   app.setAppUserModelId('SerialNotification.PortWatcher');
   loadAliases();
+  loadGroups();
   createWindow();
   createTray();
   const initialFastNames = await queryFastPortNames();

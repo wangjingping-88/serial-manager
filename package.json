@@ -1,7 +1,7 @@
 {
   "name": "serial-notification",
   "version": "0.1.0",
-  "description": "串口插拔通知和自定义命名工具",
+  "description": "串口管理、插拔通知、分组和自定义命名工具",
   "main": "src/main.js",
   "private": true,
   "author": "UCCHIP",
@@ -11,6 +11,7 @@
     "icon": "node tools/generate-icon.js",
     "dist": "npm run dist:zip",
     "dist:zip": "npm run icon && electron-builder --win dir --x64 && powershell -NoProfile -ExecutionPolicy Bypass -File tools/package-folder.ps1",
+    "dist:preview": "npm run icon && electron-builder --win dir --x64 --config.directories.output=dist/preview",
     "dist:setup": "npm run icon && electron-builder --win nsis --x64 --config.directories.output=dist/setup",
     "dist:portable": "npm run icon && electron-builder --win portable --x64"
   },
@@ -20,7 +21,7 @@
   },
   "build": {
     "appId": "com.ucchip.serial-notification",
-    "productName": "串口通知工具",
+    "productName": "串口管理工具",
     "copyright": "Copyright © 2026 UCCHIP",
     "asar": true,
     "files": [
@@ -49,11 +50,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "串口通知工具",
-      "artifactName": "串口通知工具-${version}-setup.${ext}"
+      "shortcutName": "串口管理工具",
+      "artifactName": "串口管理工具-${version}-setup.${ext}"
     },
     "portable": {
-      "artifactName": "串口通知工具-${version}-便携版.exe"
+      "artifactName": "串口管理工具-${version}-便携版.exe"
     }
   }
 }
