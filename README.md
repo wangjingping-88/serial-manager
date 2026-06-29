@@ -19,8 +19,8 @@
 依赖和缓存已经配置在当前 D 盘项目目录内。
 
 ```powershell
-$env:npm_config_cache="D:\code\serial-notification\.npm-cache"
-$env:ELECTRON_CACHE="D:\code\serial-notification\.electron-cache"
+$env:npm_config_cache="D:\code\serial-manager\.npm-cache"
+$env:ELECTRON_CACHE="D:\code\serial-manager\.electron-cache"
 npm install
 npm start
 ```
@@ -45,8 +45,8 @@ npm run check:layout
 ## 构建
 
 ```powershell
-$env:ELECTRON_CACHE="D:\code\serial-notification\.electron-cache"
-$env:ELECTRON_BUILDER_CACHE="D:\code\serial-notification\.electron-builder-cache"
+$env:ELECTRON_CACHE="D:\code\serial-manager\.electron-cache"
+$env:ELECTRON_BUILDER_CACHE="D:\code\serial-manager\.electron-builder-cache"
 npm run dist:preview # 生成免安装预览目录
 npm run dist:setup   # 生成 Windows 安装包
 ```

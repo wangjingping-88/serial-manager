@@ -1086,11 +1086,15 @@ h2 {
 .event-mark {
   width: 24px;
   height: 24px;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 999px;
   color: #fff;
+  font-family: Arial, sans-serif;
+  font-size: 17px;
   font-weight: 900;
+  line-height: 1;
 }
 
 .event-item.attached .event-mark {

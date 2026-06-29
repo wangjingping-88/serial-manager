@@ -1,5 +1,5 @@
 {
-  "name": "serial-notification",
+  "name": "serial-manager",
   "version": "0.1.0",
   "description": "串口管理、插拔通知、分组和自定义命名工具",
   "main": "src/main.js",
@@ -22,7 +22,7 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.ucchip.serial-notification",
+    "appId": "com.ucchip.serial-manager",
     "productName": "串口管理工具",
     "copyright": "Copyright © 2026 UCCHIP",
     "asar": true,

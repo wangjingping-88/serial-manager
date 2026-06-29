@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="zh-CN" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        margin: 0;
+        overflow: hidden;
+        background: #f4efe3;
+        color: #07131f;
+        font-family: sans-serif;
+        font-variant-numeric: tabular-nums;
+      }
+
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background:
+          linear-gradient(135deg, rgba(193, 121, 0, 0.12), transparent 34%),
+          linear-gradient(315deg, rgba(31, 157, 85, 0.12), transparent 32%),
+          #f4efe3;
+      }
+
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: transparent;
+      }
+
+      #scene-2,
+      #scene-3,
+      #scene-4,
+      #scene-5,
+      #scene-6,
+      #scene-7 {
+        opacity: 0;
+      }
+
+      .grain {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        opacity: 0.24;
+        pointer-events: none;
+        background-image:
+          linear-gradient(90deg, rgba(7, 19, 31, 0.045) 1px, transparent 1px),
+          linear-gradient(0deg, rgba(7, 19, 31, 0.035) 1px, transparent 1px);
+        background-size: 72px 72px;
+      }
+
+      .scene-content {
+        position: relative;
+        z-index: 2;
+        width: 100%;
+        height: 100%;
+        padding: 84px 104px 78px;
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+      }
+
+      .eyebrow {
+        margin: 0;
+        color: #c17900;
+        font-size: 25px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        max-width: 1080px;
+        font-size: 104px;
+        line-height: 1.04;
+        font-weight: 900;
+      }
+
+      h2 {
+        max-width: 1180px;
+        font-size: 76px;
+        line-height: 1.1;
+        font-weight: 900;
+      }
+
+      .lead {
+        max-width: 900px;
+        color: #435150;
+        font-size: 33px;
+        line-height: 1.44;
+        font-weight: 400;
+      }
+
+      .decor-word {
+        position: absolute;
+        right: 82px;
+        bottom: 86px;
+        z-index: 1;
+        color: rgba(7, 19, 31, 0.12);
+        font-size: 180px;
+        font-weight: 900;
+        line-height: 1;
+      }
+
+      .split {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 0.94fr 1.06fr;
+        gap: 58px;
+        align-items: center;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 26px;
+      }
+
+      .terminal,
+      .wire-map,
+      .app-frame,
+      .rename-card,
+      .search-panel,
+      .github-card,
+      .download {
+        box-shadow: 0 28px 82px rgba(7, 19, 31, 0.12);
+      }
+
+      .terminal {
+        width: 100%;
+        padding: 30px;
+        border: 1px solid rgba(19, 138, 138, 0.24);
+        border-radius: 20px;
+        background: #fffdf7;
+      }
+
+      .terminal-line {
+        display: grid;
+        grid-template-columns: 126px minmax(0, 1fr) 64px;
+        align-items: center;
+        gap: 18px;
+        min-height: 72px;
+        border-bottom: 1px solid rgba(100, 112, 111, 0.16);
+        font-size: 28px;
+      }
+
+      .terminal-line:last-child {
+        border-bottom: 0;
+      }
+
+      .com {
+        display: inline-flex;
+        width: fit-content;
+        padding: 10px 16px;
+        border-radius: 12px;
+        color: #07575b;
+        background: rgba(19, 138, 138, 0.13);
+        font-family: monospace;
+        font-size: 27px;
+        font-weight: 900;
+      }
+
+      .unknown {
+        color: #64706f;
+        font-weight: 800;
+      }
+
+      .signal {
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: #1f9d55;
+        box-shadow: 0 0 0 10px rgba(31, 157, 85, 0.1);
+        justify-self: end;
+      }
+
+      .wire-map {
+        height: 574px;
+        position: relative;
+        border-radius: 28px;
+        background: #fffdf7;
+        border: 1px solid rgba(193, 121, 0, 0.22);
+        overflow: hidden;
+      }
+
+      .hub {
+        position: absolute;
+        z-index: 2;
+        left: 74px;
+        top: 198px;
+        width: 190px;
+        height: 176px;
+        border-radius: 28px;
+        background: #07131f;
+        color: #fffdf7;
+        display: grid;
+        place-items: center;
+        font-size: 40px;
+        font-weight: 900;
+      }
+
+      .wire-layer {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+        pointer-events: none;
+      }
+
+      .wire-path {
+        fill: none;
+        stroke: #138a8a;
+        stroke-width: 5;
+        stroke-linecap: round;
+        opacity: 0.72;
+        vector-effect: non-scaling-stroke;
+      }
+
+      .port-pill {
+        position: absolute;
+        z-index: 2;
+        right: 66px;
+        width: 220px;
+        height: 74px;
+        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f7f2e7;
+        border: 1px solid rgba(19, 138, 138, 0.22);
+        color: #07131f;
+        font-family: monospace;
+        font-size: 31px;
+        font-weight: 900;
+      }
+
+      .port-pill.p1 { top: 84px; }
+      .port-pill.p2 { top: 188px; }
+      .port-pill.p3 { top: 292px; }
+      .port-pill.p4 { top: 396px; }
+
+      .app-frame {
+        width: 1160px;
+        border-radius: 24px;
+        overflow: hidden;
+        background: #fffdf7;
+        border: 1px solid rgba(7, 19, 31, 0.12);
+      }
+
+      .app-frame img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .callout-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+      }
+
+      .callout {
+        min-height: 128px;
+        padding: 22px;
+        border-radius: 18px;
+        background: #fffdf7;
+        border: 1px solid rgba(7, 19, 31, 0.1);
+      }
+
+      .callout strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 29px;
+        font-weight: 900;
+      }
+
+      .callout span {
+        color: #64706f;
+        font-size: 21px;
+        line-height: 1.3;
+      }
+
+      .rename-flow {
+        display: grid;
+        grid-template-columns: 1fr 72px 1fr 72px 1fr;
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .rename-card {
+        padding: 30px;
+        min-height: 242px;
+        border-radius: 24px;
+        background: #fffdf7;
+        border: 1px solid rgba(19, 138, 138, 0.18);
+      }
+
+      .rename-card .com {
+        margin-bottom: 24px;
+      }
+
+      .rename-card strong {
+        display: block;
+        font-size: 40px;
+        font-weight: 900;
+      }
+
+      .rename-card small {
+        display: block;
+        margin-top: 16px;
+        color: #64706f;
+        font-size: 23px;
+        line-height: 1.34;
+      }
+
+      .arrow {
+        align-self: center;
+        justify-self: center;
+        color: #138a8a;
+        font-size: 52px;
+        font-weight: 900;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr);
+        gap: 42px;
+        align-items: stretch;
+      }
+
+      .tabs-column {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .tab-item {
+        height: 78px;
+        padding: 0 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-radius: 18px;
+        border: 1px solid rgba(19, 138, 138, 0.22);
+        background: #fffdf7;
+        color: #07131f;
+        font-size: 27px;
+        font-weight: 900;
+      }
+
+      .tab-label {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+      }
+
+      .dot {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 auto;
+        border-radius: 999px;
+        background: #138a8a;
+        margin-right: 14px;
+      }
+
+      .badge {
+        min-width: 44px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        background: #eef8f1;
+        color: #0d6a3d;
+        font-family: monospace;
+        font-size: 23px;
+      }
+
+      .search-panel {
+        padding: 40px;
+        border-radius: 26px;
+        background: #fffdf7;
+        border: 1px solid rgba(7, 19, 31, 0.12);
+      }
+
+      .search-box {
+        min-height: 92px;
+        padding: 20px 28px;
+        display: flex;
+        align-items: center;
+        border-radius: 20px;
+        border: 2px solid rgba(19, 138, 138, 0.32);
+        background: #f7f2e7;
+        font-size: 30px;
+        line-height: 1.32;
+        color: #435150;
+      }
+
+      .regex {
+        margin-top: 28px;
+        padding: 24px 28px;
+        border-radius: 18px;
+        background: #07131f;
+        color: #fffdf7;
+        font-family: monospace;
+        font-size: 32px;
+        font-weight: 700;
+      }
+
+      .notification-stage {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 430px;
+        gap: 42px;
+        align-items: center;
+      }
+
+      .toast {
+        width: 680px;
+        padding: 36px;
+        display: grid;
+        grid-template-columns: 94px minmax(0, 1fr);
+        gap: 28px;
+        align-items: center;
+        border-radius: 28px;
+        background: #1d2226;
+        color: #fffdf7;
+        box-shadow: 0 34px 110px rgba(7, 19, 31, 0.34);
+      }
+
+      .toast-icon {
+        width: 94px;
+        height: 94px;
+        border-radius: 22px;
+        display: grid;
+        place-items: center;
+        background: #fffdf7;
+        color: #138a8a;
+        font-size: 52px;
+      }
+
+      .toast-text {
+        min-width: 0;
+      }
+
+      .toast strong {
+        display: block;
+        font-size: 38px;
+        font-weight: 900;
+      }
+
+      .toast span {
+        display: block;
+        margin-top: 6px;
+        color: #c9d3d0;
+        font-size: 27px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .event-list {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .event {
+        height: 92px;
+        padding: 0 22px;
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr);
+        align-items: center;
+        gap: 18px;
+        border-radius: 18px;
+        background: #fffdf7;
+        border: 1px solid rgba(7, 19, 31, 0.1);
+      }
+
+      .event-mark {
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        color: #fffdf7;
+        background: #1f9d55;
+        font-family: Arial, sans-serif;
+        font-size: 27px;
+        font-weight: 900;
+        line-height: 1;
+      }
+
+      .event.red .event-mark {
+        background: #ca3d32;
+      }
+
+      .event-text {
+        min-width: 0;
+        display: grid;
+        gap: 5px;
+      }
+
+      .event-title {
+        color: #07131f;
+        font-size: 24px;
+        font-weight: 900;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .event-meta {
+        color: #64706f;
+        font-size: 20px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .release-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 520px;
+        gap: 48px;
+        align-items: center;
+      }
+
+      #scene-6 h2 {
+        max-width: 1500px;
+        font-size: 70px;
+      }
+
+      .github-card {
+        min-height: 440px;
+        padding: 46px;
+        border-radius: 30px;
+        background: #07131f;
+        color: #fffdf7;
+      }
+
+      .github-card .repo {
+        font-family: monospace;
+        font-size: 28px;
+        color: #93e0da;
+      }
+
+      .github-card strong {
+        display: block;
+        margin-top: 28px;
+        font-size: 66px;
+        line-height: 1.04;
+        font-weight: 900;
+      }
+
+      .star-row {
+        margin-top: 30px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        color: #ffd166;
+        font-size: 36px;
+        font-weight: 900;
+      }
+
+      .download {
+        padding: 38px;
+        border-radius: 28px;
+        background: #fffdf7;
+        border: 1px solid rgba(193, 121, 0, 0.24);
+      }
+
+      .download small {
+        display: block;
+        color: #64706f;
+        font-size: 22px;
+      }
+
+      .download strong {
+        display: block;
+        margin: 12px 0 28px;
+        font-size: 25px;
+        line-height: 1.48;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .download-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding-top: 18px;
+        border-top: 1px solid rgba(100, 112, 111, 0.16);
+        font-size: 25px;
+        font-weight: 900;
+      }
+
+      .final {
+        height: 100%;
+        display: grid;
+        place-items: center;
+        text-align: center;
+      }
+
+      .final h2 {
+        max-width: 1200px;
+        font-size: 92px;
+        line-height: 1.08;
+      }
+
+      .final .eyebrow {
+        margin-bottom: 28px;
+      }
+
+      .final .lead {
+        margin: 30px auto 0;
+        max-width: 1040px;
+      }
+
+      .cta-row {
+        margin-top: 46px;
+        display: flex;
+        justify-content: center;
+        gap: 22px;
+      }
+
+      .cta {
+        height: 76px;
+        padding: 0 34px;
+        display: flex;
+        align-items: center;
+        border-radius: 18px;
+        background: #07131f;
+        color: #fffdf7;
+        font-size: 27px;
+        font-weight: 900;
+      }
+
+      .cta.light {
+        background: #fffdf7;
+        color: #07131f;
+        border: 1px solid rgba(7, 19, 31, 0.16);
+      }
+    </style>
+  </head>
+  <body>
+    <main
+      id="root"
+      data-composition-id="main"
+      data-width="1920"
+      data-height="1080"
+      data-start="0"
+      data-duration="60"
+      data-fps="30"
+      data-background="#f4efe3"
+    >
+      <div class="grain"></div>
+
+      <section id="scene-1" class="scene">
+        <div class="decor-word" aria-hidden="true" data-layout-allow-overflow data-layout-allow-occlusion>COM?</div>
+        <div class="scene-content">
+          <p class="eyebrow scene-1-in">Serial Port Manager</p>
+          <div class="split">
+            <div class="stack">
+              <h1 class="scene-1-in">Hub 上一排串口，刚接入的是哪一个？</h1>
+              <p class="lead scene-1-in">串口多了以后，COM 号、设备名和物理位置很容易混在一起。这个工具专门解决这个痛点。</p>
+            </div>
+            <div class="wire-map scene-1-in">
+              <div class="hub">USB Hub</div>
+              <svg class="wire-layer" viewBox="0 0 860 574" aria-hidden="true">
+                <path class="wire-path" d="M 264 222 C 360 198, 462 154, 568 121" />
+                <path class="wire-path" d="M 264 248 C 360 240, 462 229, 568 225" />
+                <path class="wire-path" d="M 264 304 C 360 314, 462 324, 568 329" />
+                <path class="wire-path" d="M 264 338 C 360 372, 462 410, 568 433" />
+              </svg>
+              <div class="port-pill p1">COM7</div>
+              <div class="port-pill p2">COM8</div>
+              <div class="port-pill p3">COM9</div>
+              <div class="port-pill p4">COM10</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-2" class="scene">
+        <div class="decor-word" aria-hidden="true" data-layout-allow-overflow data-layout-allow-occlusion>MANAGER</div>
+        <div class="scene-content">
+          <p class="eyebrow scene-2-in">Live Watcher</p>
+          <h2 class="scene-2-in">打开即扫描，前台看列表，后台看通知。</h2>
+          <div class="split">
+            <div class="app-frame scene-2-in"><img src="./assets/app-default.png" alt="串口管理工具界面" /></div>
+            <div class="callout-row">
+              <div class="callout scene-2-in"><strong>实时监听</strong><span>插入、拔出后快速刷新列表。</span></div>
+              <div class="callout scene-2-in"><strong>托盘常驻</strong><span>最小化后继续在后台工作。</span></div>
+              <div class="callout scene-2-in"><strong>低打扰通知</strong><span>窗口不在前台时才提示。</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-3" class="scene">
+        <div class="decor-word" aria-hidden="true" data-layout-allow-overflow data-layout-allow-occlusion>ALIAS</div>
+        <div class="scene-content">
+          <p class="eyebrow scene-3-in">Custom Alias</p>
+          <h2 class="scene-3-in">给每个串口起一个你真正看得懂的名字。</h2>
+          <div class="rename-flow">
+            <div class="rename-card scene-3-in"><span class="com">COM7</span><strong class="unknown">未命名</strong><small>默认只显示系统识别到的端口。</small></div>
+            <div class="arrow scene-3-in">→</div>
+            <div class="rename-card scene-3-in"><span class="com">COM7</span><strong>网关 AP</strong><small>回车确认，之后可再次编辑。</small></div>
+            <div class="arrow scene-3-in">→</div>
+            <div class="rename-card scene-3-in"><span class="com">COM7</span><strong>网关 AP</strong><small>插拔通知也优先显示这个名字。</small></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-4" class="scene">
+        <div class="decor-word" aria-hidden="true" data-layout-allow-overflow data-layout-allow-occlusion>GROUP</div>
+        <div class="scene-content">
+          <p class="eyebrow scene-4-in">Groups & Search</p>
+          <h2 class="scene-4-in">分组、排序、搜索，让串口数量变多也不乱。</h2>
+          <div class="feature-grid">
+            <div class="tabs-column">
+              <div class="tab-item scene-4-in"><span class="tab-label"><span class="dot"></span>全部</span><span class="badge">6</span></div>
+              <div class="tab-item scene-4-in"><span class="tab-label"><span class="dot"></span>Mesh</span><span class="badge">3</span></div>
+              <div class="tab-item scene-4-in"><span class="tab-label"><span class="dot"></span>AP</span><span class="badge">2</span></div>
+              <div class="tab-item scene-4-in"><span class="tab-label"><span class="dot"></span>网关</span><span class="badge">1</span></div>
+            </div>
+            <div class="search-panel scene-4-in">
+              <div class="search-box">搜索 COM、名称、厂商、服务、分组；也支持正则表达式。</div>
+              <div class="regex">/COM(7|8)$/i  →  COM7、COM8</div>
+              <p class="lead">分组 Tab 可拖动排序，按 Del 删除前会确认，颜色用于快速区分设备区域。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-5" class="scene">
+        <div class="decor-word" aria-hidden="true" data-layout-allow-overflow data-layout-allow-occlusion>EVENT</div>
+        <div class="scene-content">
+          <p class="eyebrow scene-5-in">Background Watcher</p>
+          <h2 class="scene-5-in">前台不打扰，后台才通知。</h2>
+          <div class="notification-stage">
+            <div class="stack">
+              <p class="lead scene-5-in">窗口在前台时，变化直接更新在列表和最近事件里；工具在后台时，系统通知告诉你哪个串口发生变化。</p>
+              <div class="toast scene-5-in">
+                <div class="toast-icon">▣</div>
+                <div class="toast-text"><strong>串口已插入</strong><span>网关 AP (COM7)</span><span>USB-SERIAL CH340</span></div>
+              </div>
+            </div>
+            <div class="event-list">
+              <div class="event scene-5-in"><span class="event-mark">+</span><span class="event-text"><strong class="event-title">网关 AP (COM7)</strong><span class="event-meta">插入 · 14:23:15</span></span></div>
+              <div class="event red scene-5-in"><span class="event-mark">−</span><span class="event-text"><strong class="event-title">R4 (COM8)</strong><span class="event-meta">拔出 · 14:23:14</span></span></div>
+              <div class="event scene-5-in"><span class="event-mark">+</span><span class="event-text"><strong class="event-title">R1 (COM10)</strong><span class="event-meta">插入 · 14:23:12</span></span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-6" class="scene">
+        <div class="decor-word" aria-hidden="true" data-layout-allow-overflow data-layout-allow-occlusion>STAR</div>
+        <div class="scene-content">
+          <p class="eyebrow scene-6-in">Open Source</p>
+          <h2 class="scene-6-in">GitHub Release 已发布，可直接下载安装。</h2>
+          <div class="release-card">
+            <div class="github-card scene-6-in">
+              <div class="repo">github.com/wangjingping-88/serial-manager</div>
+              <strong>串口管理工具</strong>
+              <div class="star-row">★ 欢迎 Star / Issue / PR</div>
+            </div>
+            <div class="download scene-6-in">
+              <small>版本 v0.1.0 安装包</small>
+              <strong>串口管理工具-0.1.0-setup.exe</strong>
+              <div class="download-row"><span>平台</span><span>Windows x64</span></div>
+              <div class="download-row"><span>形态</span><span>托盘常驻应用</span></div>
+              <div class="download-row"><span>适合</span><span>串口调试 / Hub 多设备</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-7" class="scene">
+        <div class="scene-content final">
+          <div>
+            <p class="eyebrow scene-7-in">Serial Port Manager</p>
+            <h2 class="scene-7-in">让每一次串口插拔，都能马上知道是谁。</h2>
+            <p class="lead scene-7-in">下载试用，给项目一个 Star，让它继续变得更好。</p>
+            <div class="cta-row">
+              <div class="cta scene-7-in">GitHub Release</div>
+              <div class="cta light scene-7-in">串口管理工具 v0.1.0</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines = window.__timelines || {};
+      window.__timelines.main = tl;
+
+      function enter(selector, at, stagger = 0.08) {
+        tl.fromTo(
+          selector,
+          { autoAlpha: 0, y: 28, scale: 0.985 },
+          { autoAlpha: 1, y: 0, scale: 1, duration: 0.72, ease: "power3.out", stagger },
+          at
+        );
+      }
+
+      function blurCross(from, to, at) {
+        tl.to(from, { autoAlpha: 0, filter: "blur(18px)", scale: 1.015, duration: 0.72, ease: "power2.inOut" }, at);
+        tl.fromTo(to, { autoAlpha: 0, filter: "blur(18px)", scale: 0.985 }, { autoAlpha: 1, filter: "blur(0px)", scale: 1, duration: 0.72, ease: "power2.inOut" }, at);
+      }
+
+      tl.set("#scene-1", { autoAlpha: 1 });
+      enter(".scene-1-in", 0.2);
+      tl.fromTo(".wire-path", { strokeDasharray: 560, strokeDashoffset: 560 }, { strokeDashoffset: 0, duration: 0.8, ease: "power2.out", stagger: 0.1 }, 1.0);
+      tl.fromTo(".port-pill", { autoAlpha: 0, x: 22 }, { autoAlpha: 1, x: 0, duration: 0.54, ease: "power2.out", stagger: 0.08 }, 1.38);
+
+      blurCross("#scene-1", "#scene-2", 7.8);
+      enter(".scene-2-in", 8.55);
+      tl.to(".callout", { y: -8, duration: 0.55, ease: "sine.inOut", yoyo: true, repeat: 1, stagger: 0.12 }, 11.1);
+
+      blurCross("#scene-2", "#scene-3", 17.0);
+      enter(".scene-3-in", 17.75, 0.1);
+      tl.to(".rename-card:nth-of-type(3)", { boxShadow: "0 0 0 8px rgba(19,138,138,0.16)", duration: 0.42, yoyo: true, repeat: 3 }, 21.2);
+
+      blurCross("#scene-3", "#scene-4", 25.6);
+      enter(".scene-4-in", 26.35, 0.08);
+      tl.to(".tab-item:nth-child(2)", { x: 18, duration: 0.38, yoyo: true, repeat: 3, ease: "sine.inOut" }, 30.5);
+
+      blurCross("#scene-4", "#scene-5", 34.2);
+      enter(".scene-5-in", 34.95, 0.09);
+      tl.fromTo(".toast", { x: 38 }, { x: 0, duration: 0.64, ease: "back.out(1.4)" }, 37.0);
+      tl.fromTo(".event", { x: 24 }, { x: 0, duration: 0.42, ease: "power2.out", stagger: 0.12 }, 38.0);
+
+      blurCross("#scene-5", "#scene-6", 43.8);
+      enter(".scene-6-in", 44.55, 0.09);
+      tl.to(".star-row", { scale: 1.05, duration: 0.38, yoyo: true, repeat: 3, ease: "sine.inOut" }, 47.6);
+
+      blurCross("#scene-6", "#scene-7", 52.0);
+      enter(".scene-7-in", 52.75, 0.1);
+      tl.to(".cta", { y: -6, duration: 0.44, yoyo: true, repeat: 3, stagger: 0.12, ease: "sine.inOut" }, 55.0);
+      tl.to({}, { duration: 3.8 });
+    </script>
+  </body>
+</html>

@@ -601,7 +601,7 @@ registerWindowIpcHandlers(ipcMain, {
 });
 
 app.whenReady().then(async () => {
-  app.setAppUserModelId('SerialNotification.PortWatcher');
+  app.setAppUserModelId('SerialManager.PortWatcher');
   loadAliases();
   loadGroups();
   createWindow();

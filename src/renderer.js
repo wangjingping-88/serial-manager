@@ -993,7 +993,7 @@ function createEventItem(event, index, animateLatest = false) {
 
   const mark = document.createElement('span');
   mark.className = 'event-mark';
-  mark.textContent = event.type === 'attached' ? '+' : '-';
+  mark.textContent = event.type === 'attached' ? '+' : '−';
 
   const body = document.createElement('div');
   const title = document.createElement('strong');

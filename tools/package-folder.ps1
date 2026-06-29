@@ -5,7 +5,7 @@ $packageJson = Get-Content -LiteralPath (Join-Path $root "package.json") -Raw | 
 $version = $packageJson.version
 $distDir = Join-Path $root "dist"
 $sourceDir = Join-Path $distDir "win-unpacked"
-$folderName = "serial-notification-$version-folder"
+$folderName = "serial-manager-$version-folder"
 $targetDir = Join-Path $distDir $folderName
 $zipPath = Join-Path $distDir "$folderName.zip"
 
