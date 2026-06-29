@@ -1,4 +1,5 @@
 const MIN_SCAN_MS = 650;
+const EVENT_HISTORY_LIMIT = 80;
 const GROUP_COLORS = ['#138a8a', '#1f9d55', '#c17900', '#ca3d32', '#4f6fbd', '#8a5fbf', '#ad5d20'];
 const CUSTOM_COLOR_FALLBACK = '#4f7c52';
 
@@ -21,7 +22,8 @@ const state = {
   portSignature: '',
   groupSignature: '',
   orderSignature: '',
-  eventSignature: ''
+  eventSignature: '',
+  searchQuery: ''
 };
 
 const elements = {
@@ -34,6 +36,9 @@ const elements = {
   scanLoader: document.querySelector('#scanLoader'),
   emptyPorts: document.querySelector('#emptyPorts'),
   emptyEvents: document.querySelector('#emptyEvents'),
+  portSearchInput: document.querySelector('#portSearchInput'),
+  portSearchMeta: document.querySelector('#portSearchMeta'),
+  clearEventsButton: document.querySelector('#clearEventsButton'),
   scanStatus: document.querySelector('#scanStatus'),
   refreshButton: document.querySelector('#refreshButton'),
   trayButton: document.querySelector('#trayButton')
@@ -177,7 +182,19 @@ function getVisiblePorts() {
     visible = state.ports.filter((port) => port.groupId === state.activeGroupId);
   }
 
-  return sortPortsByOrder(visible, getActiveOrderKey());
+  return window.PortFilter.filterPorts(sortPortsByOrder(visible, getActiveOrderKey()), state.searchQuery);
+}
+
+function getGroupedPortsBeforeSearch() {
+  if (state.activeGroupId === 'ungrouped') {
+    return state.ports.filter((port) => !port.groupId);
+  }
+
+  if (state.activeGroupId !== 'all') {
+    return state.ports.filter((port) => port.groupId === state.activeGroupId);
+  }
+
+  return state.ports;
 }
 
 function sortPortsByOrder(ports, orderKey) {
@@ -208,14 +225,29 @@ function renderSummary() {
   elements.portCount.textContent = state.ports.length;
   elements.aliasCount.textContent = state.ports.filter((port) => port.alias).length;
   elements.updatedAt.textContent = formatTime(state.updatedAt);
+  renderSearchMeta();
+}
+
+function renderSearchMeta() {
+  const visibleCount = getVisiblePorts().length;
+  const totalCount = getGroupedPortsBeforeSearch().length;
+  elements.portSearchMeta.textContent = window.PortFilter.createSearchSummary({
+    visibleCount,
+    totalCount,
+    query: state.searchQuery
+  });
 }
 
 function updateVisibility() {
   const visiblePorts = getVisiblePorts();
+  const isSearching = Boolean(window.PortFilter.normalizeSearchTerm(state.searchQuery));
   elements.scanLoader.hidden = !state.isScanning;
   elements.portsList.hidden = state.isScanning || visiblePorts.length === 0;
   elements.emptyPorts.hidden = state.isScanning || visiblePorts.length > 0;
   elements.emptyEvents.hidden = state.events.length > 0;
+  elements.clearEventsButton.disabled = state.events.length === 0;
+  elements.emptyPorts.querySelector('strong').textContent = isSearching ? '没有匹配的串口' : '未发现串口';
+  elements.emptyPorts.querySelector('span').textContent = isSearching ? '换个关键词或切换分组后再试。' : '插入 USB 串口设备后会自动显示。';
 }
 
 function renderGroups() {
@@ -397,6 +429,7 @@ async function handleGroupDrop(event, targetGroup) {
 function switchGroupTab(groupId) {
   state.activeGroupId = groupId;
   updateVisibility();
+  renderSearchMeta();
   updateActiveGroupTab();
   renderPorts();
   keepActiveGroupVisible();
@@ -589,6 +622,9 @@ function createPortCard(port) {
   setTooltip(badge, port.portName || 'COM?');
 
   titleGroup.append(badge, createAliasView(port), createDeviceName(port));
+  if (state.editingKey === port.deviceKey) {
+    titleGroup.classList.add('is-editing-alias');
+  }
   main.append(titleGroup, createPortMeta(port));
 
   card.append(main);
@@ -1171,8 +1207,25 @@ async function refreshNow() {
   }
 }
 
+async function clearEventsNow() {
+  elements.clearEventsButton.disabled = true;
+  try {
+    const snapshot = await window.serialApi.clearEvents();
+    applySnapshot(snapshot);
+  } finally {
+    elements.clearEventsButton.disabled = state.events.length === 0;
+  }
+}
+
 elements.refreshButton.addEventListener('click', refreshNow);
 elements.trayButton.addEventListener('click', () => window.serialApi.minimizeToTray());
+elements.clearEventsButton.addEventListener('click', clearEventsNow);
+elements.portSearchInput.addEventListener('input', () => {
+  state.searchQuery = elements.portSearchInput.value;
+  updateVisibility();
+  renderSearchMeta();
+  renderPorts();
+});
 elements.groupsBar.addEventListener('scroll', () => {
   closeGroupContextMenu();
   updateGroupScrollState();
@@ -1240,7 +1293,7 @@ document.addEventListener('keydown', (event) => {
 
 window.serialApi.onSnapshot(receiveSnapshot);
 window.serialApi.onPortEvent((event) => {
-  state.events = [event, ...state.events].slice(0, 80);
+  state.events = [event, ...state.events].slice(0, EVENT_HISTORY_LIMIT);
   state.eventSignature = createEventSignature(state.events);
   updateVisibility();
   renderEvents({ animateLatest: true });

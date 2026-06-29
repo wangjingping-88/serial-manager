@@ -1,23 +1,37 @@
 const { app, BrowserWindow, Menu, Notification, Tray, ipcMain, nativeImage, dialog } = require('electron');
-const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { loadJsonFile, saveJsonFileAtomic } = require('./main/atomic-json-store');
+const {
+  GROUP_COLORS,
+  createEmptyAliasStore,
+  createEmptyGroupStore,
+  normalizeAlias,
+  normalizeAliasStore,
+  normalizeGroupColor,
+  normalizeGroupName,
+  normalizeGroupStore
+} = require('./main/config-schema');
+const { buildNotificationBody, buildNotificationTitle } = require('./main/notification-content');
+const { DEFAULT_EVENT_DEDUPE_MS, DEFAULT_EVENT_LIMIT, addPortEvent, clearEventHistory, createEventHistory } = require('./main/port-event-history');
+const { registerSerialIpcHandlers, registerWindowIpcHandlers } = require('./main/serial-ipc');
+const { queryFastPortNames, querySerialPorts } = require('./main/serial-scanner');
+const { sortPorts } = require('./main/serial-utils');
+const { createTrayMenuTemplate } = require('./main/tray-menu');
+const { getCloseResponseAction, showWindowIfAvailable } = require('./main/window-lifecycle');
 
 const FAST_POLL_INTERVAL_MS = 500;
 const FULL_REFRESH_INTERVAL_MS = 5000;
-const EVENT_DEDUPE_MS = 1200;
 const REMOVAL_CONFIRM_POLLS = 2;
 const ICON_PATH = path.join(__dirname, '..', 'assets', 'app.ico');
-const GROUP_COLORS = ['#138a8a', '#1f9d55', '#c17900', '#ca3d32', '#4f6fbd', '#8a5fbf', '#ad5d20', '#4f7c52'];
 
 let mainWindow;
 let tray;
 let aliases = {};
-let groupStore = { groups: [], assignments: {}, orders: {} };
+let groupStore = createEmptyGroupStore();
 let ports = [];
-let events = [];
+let eventHistory = createEventHistory({ limit: DEFAULT_EVENT_LIMIT, dedupeMs: DEFAULT_EVENT_DEDUPE_MS });
 let portInfoCache = new Map();
-let recentEventKeys = new Map();
 let activeNotifications = new Map();
 let fastKnownPortNames = new Set();
 let missingPortCounts = new Map();
@@ -54,85 +68,20 @@ function ensureDataDir() {
 
 function loadAliases() {
   ensureDataDir();
-  try {
-    aliases = JSON.parse(fs.readFileSync(getAliasesFile(), 'utf8'));
-  } catch {
-    aliases = {};
-  }
+  aliases = normalizeAliasStore(loadJsonFile(getAliasesFile(), createEmptyAliasStore())).aliases;
 }
 
 function saveAliases() {
-  ensureDataDir();
-  fs.writeFileSync(getAliasesFile(), JSON.stringify(aliases, null, 2), 'utf8');
+  saveJsonFileAtomic(getAliasesFile(), normalizeAliasStore(aliases));
 }
 
 function loadGroups() {
   ensureDataDir();
-  try {
-    const parsed = JSON.parse(fs.readFileSync(getGroupsFile(), 'utf8'));
-    groupStore = normalizeGroupStore(parsed);
-  } catch {
-    groupStore = { groups: [], assignments: {}, orders: {} };
-  }
+  groupStore = normalizeGroupStore(loadJsonFile(getGroupsFile(), createEmptyGroupStore()));
 }
 
 function saveGroups() {
-  ensureDataDir();
-  fs.writeFileSync(getGroupsFile(), JSON.stringify(groupStore, null, 2), 'utf8');
-}
-
-function normalizeAlias(value) {
-  return String(value || '').trim().slice(0, 80);
-}
-
-function normalizeGroupStore(value) {
-  const sourceGroups = Array.isArray(value && value.groups) ? value.groups : [];
-  const groups = [];
-  const seen = new Set();
-
-  for (const item of sourceGroups) {
-    const id = String(item && item.id ? item.id : '').trim();
-    const name = normalizeGroupName(item && item.name);
-    if (!id || !name || seen.has(id)) {
-      continue;
-    }
-
-    groups.push({ id, name, color: normalizeGroupColor(item && item.color) });
-    seen.add(id);
-  }
-
-  const validIds = new Set(groups.map((group) => group.id));
-  const assignments = {};
-  const sourceAssignments = value && typeof value.assignments === 'object' ? value.assignments : {};
-  for (const [key, groupId] of Object.entries(sourceAssignments)) {
-    const normalizedKey = String(key || '').trim();
-    const normalizedGroupId = String(groupId || '').trim();
-    if (normalizedKey && validIds.has(normalizedGroupId)) {
-      assignments[normalizedKey] = normalizedGroupId;
-    }
-  }
-
-  const orders = {};
-  const sourceOrders = value && typeof value.orders === 'object' ? value.orders : {};
-  const allowedOrderKeys = new Set(['all', 'ungrouped', ...groups.map((group) => group.id)]);
-  for (const [orderKey, values] of Object.entries(sourceOrders)) {
-    if (!allowedOrderKeys.has(orderKey) || !Array.isArray(values)) {
-      continue;
-    }
-
-    orders[orderKey] = [...new Set(values.map((item) => String(item || '').trim()).filter(Boolean))];
-  }
-
-  return { groups, assignments, orders };
-}
-
-function normalizeGroupName(value) {
-  return String(value || '').trim().slice(0, 24);
-}
-
-function normalizeGroupColor(value) {
-  const color = String(value || '').trim();
-  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : GROUP_COLORS[0];
+  saveJsonFileAtomic(getGroupsFile(), normalizeGroupStore(groupStore));
 }
 
 function createGroupId() {
@@ -173,22 +122,6 @@ function getDisplayLabel(port) {
   return alias ? `${alias} (${port.portName})` : port.portName;
 }
 
-function sortPortNames(portNames) {
-  return [...portNames].sort((left, right) => {
-    const a = Number(String(left).replace(/\D+/g, '')) || 9999;
-    const b = Number(String(right).replace(/\D+/g, '')) || 9999;
-    return a - b;
-  });
-}
-
-function sortPorts(list) {
-  return [...list].sort((left, right) => {
-    const a = Number(String(left.portName).replace(/\D+/g, '')) || 9999;
-    const b = Number(String(right.portName).replace(/\D+/g, '')) || 9999;
-    return a - b;
-  });
-}
-
 function cachePortInfo(list) {
   for (const port of list) {
     if (port.portName && port.deviceKey && !String(port.deviceKey).startsWith('port:')) {
@@ -201,147 +134,6 @@ function getBestKnownPort(portName) {
   const current = ports.find((port) => port.portName === portName);
   const cached = portInfoCache.get(portName);
   return cached || current || createPlaceholderPort(portName);
-}
-
-function shouldAcceptEvent(type, portName) {
-  const now = Date.now();
-  const key = `${type}:${portName}`;
-  const lastAt = recentEventKeys.get(key) || 0;
-
-  for (const [eventKey, timestamp] of recentEventKeys) {
-    if (now - timestamp > EVENT_DEDUPE_MS * 4) {
-      recentEventKeys.delete(eventKey);
-    }
-  }
-
-  if (now - lastAt < EVENT_DEDUPE_MS) {
-    return false;
-  }
-
-  recentEventKeys.set(key, now);
-  return true;
-}
-
-function buildPowerShellScript() {
-  return `
-$ErrorActionPreference = 'SilentlyContinue'
-$nativeSerialProbeCode = @'
-using System;
-using System.Runtime.InteropServices;
-public static class NativeSerialProbe {
-  [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Auto)]
-  public static extern IntPtr CreateFile(string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile);
-  [DllImport("kernel32.dll", SetLastError=true)]
-  public static extern bool CloseHandle(IntPtr hObject);
-}
-'@
-Add-Type -TypeDefinition $nativeSerialProbeCode -ErrorAction SilentlyContinue
-
-function Test-PortOpenState {
-  param([string]$PortName)
-
-  $handle = [NativeSerialProbe]::CreateFile('\\\\.\\' + $PortName, [uint32]2147483648, [uint32]0, [IntPtr]::Zero, [uint32]3, [uint32]0, [IntPtr]::Zero)
-  $errorCode = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-  if ($handle.ToInt64() -ne -1) {
-    [NativeSerialProbe]::CloseHandle($handle) | Out-Null
-    return 'free'
-  }
-
-  if ($errorCode -eq 5 -or $errorCode -eq 32) {
-    return 'open'
-  }
-
-  return 'unknown'
-}
-
-$items = Get-CimInstance Win32_PnPEntity |
-  Where-Object { $_.Name -match '\\(COM[0-9]+\\)' } |
-  ForEach-Object {
-    $match = [regex]::Match($_.Name, '\\((COM[0-9]+)\\)')
-    $portName = $match.Groups[1].Value
-    [pscustomobject]@{
-      portName = $portName
-      name = $_.Name
-      caption = $_.Caption
-      description = $_.Description
-      manufacturer = $_.Manufacturer
-      status = $_.Status
-      openState = Test-PortOpenState $portName
-      service = $_.Service
-      deviceId = $_.PNPDeviceID
-    }
-  } |
-  Sort-Object {
-    if ($_.portName -match 'COM([0-9]+)') { [int]$Matches[1] } else { 9999 }
-  }
-$json = @($items) | ConvertTo-Json -Compress
-[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json))
-`;
-}
-
-function queryFastPortNames() {
-  return new Promise((resolve) => {
-    execFile(
-      'reg.exe',
-      ['query', 'HKLM\\HARDWARE\\DEVICEMAP\\SERIALCOMM'],
-      { windowsHide: true, timeout: 1200, maxBuffer: 256 * 1024 },
-      (error, stdout) => {
-        if (error || !stdout.trim()) {
-          resolve(null);
-          return;
-        }
-
-        const matches = String(stdout || '').match(/\bCOM\d+\b/g) || [];
-        resolve(sortPortNames(new Set(matches)));
-      }
-    );
-  });
-}
-
-function querySerialPorts() {
-  return new Promise((resolve) => {
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', buildPowerShellScript()],
-      { windowsHide: true, timeout: 7000, maxBuffer: 1024 * 1024 },
-      (error, stdout) => {
-        if (error || !stdout.trim()) {
-          resolve([]);
-          return;
-        }
-
-        try {
-          const json = Buffer.from(stdout.replace(/\s+/g, ''), 'base64').toString('utf8');
-          const parsed = JSON.parse(json);
-          const list = Array.isArray(parsed) ? parsed : [parsed];
-          resolve(sortPorts(list.filter(Boolean).map(normalizePort)));
-        } catch {
-          resolve([]);
-        }
-      }
-    );
-  });
-}
-
-function normalizePort(raw) {
-  const portName = String(raw.portName || '').trim();
-  const deviceId = String(raw.deviceId || '').trim();
-  const name = String(raw.name || raw.caption || '').trim();
-  const deviceKey = deviceId || `port:${portName}`;
-  const openState = String(raw.openState || 'unknown').trim();
-
-  return {
-    portName,
-    deviceKey,
-    name,
-    caption: String(raw.caption || '').trim(),
-    description: String(raw.description || '').trim(),
-    manufacturer: String(raw.manufacturer || '').trim(),
-    status: String(raw.status || '').trim(),
-    openState: ['open', 'free', 'unknown'].includes(openState) ? openState : 'unknown',
-    service: String(raw.service || '').trim(),
-    alias: aliases[deviceKey] || aliases[`port:${portName}`] || ''
-  };
 }
 
 function createPlaceholderPort(portName) {
@@ -369,7 +161,7 @@ function createSnapshot() {
     ports: ports.map(decoratePort),
     groups: groupStore.groups.map((group) => ({ ...group })),
     orders: Object.fromEntries(Object.entries(groupStore.orders).map(([key, value]) => [key, [...value]])),
-    events,
+    events: eventHistory.events,
     updatedAt: new Date().toISOString()
   };
 }
@@ -389,19 +181,6 @@ function shouldShowSystemNotification() {
   return !mainWindow.isVisible() || !mainWindow.isFocused();
 }
 
-function buildNotificationBody(event, port) {
-  const lines = [event.label];
-  const details = [port.name || port.description, port.manufacturer].filter(Boolean);
-
-  for (const detail of details) {
-    if (detail && detail !== event.label && detail !== port.portName && !lines.includes(detail)) {
-      lines.push(detail);
-    }
-  }
-
-  return lines.join('\n');
-}
-
 function showPortNotification(type, event, port) {
   if (!isReadyForNotifications || !shouldShowSystemNotification() || !Notification.isSupported()) {
     return;
@@ -413,7 +192,7 @@ function showPortNotification(type, event, port) {
   }
 
   const notification = new Notification({
-    title: type === 'attached' ? '串口已插入' : '串口已拔出',
+    title: buildNotificationTitle(type),
     body: buildNotificationBody(event, port),
     icon: ICON_PATH,
     silent: false
@@ -429,22 +208,15 @@ function showPortNotification(type, event, port) {
 }
 
 function addEvent(type, port) {
-  if (!shouldAcceptEvent(type, port.portName)) {
+  const event = addPortEvent(eventHistory, {
+    type,
+    port,
+    label: getDisplayLabel(port)
+  });
+
+  if (!event) {
     return;
   }
-
-  const event = {
-    id: `${Date.now()}-${type}-${port.portName}`,
-    type,
-    portName: port.portName,
-    label: getDisplayLabel(port),
-    name: port.name,
-    manufacturer: port.manufacturer,
-    deviceKey: port.deviceKey,
-    timestamp: new Date().toISOString()
-  };
-
-  events = [event, ...events].slice(0, 80);
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('serial:event', event);
@@ -534,7 +306,7 @@ async function refreshPorts({ notifyDiff = false } = {}) {
 
   queryInFlight = true;
   try {
-    const nextPorts = await querySerialPorts();
+    const nextPorts = await querySerialPorts(aliases);
     if (nextPorts.length === 0 && (ports.length > 0 || fastKnownPortNames.size > 0)) {
       sendSnapshot();
       return createSnapshot();
@@ -645,12 +417,13 @@ async function promptCloseAction() {
     noLink: true
   });
 
-  if (result.response === 0) {
+  const action = getCloseResponseAction(result.response);
+  if (action === 'hide') {
     mainWindow.hide();
     return;
   }
 
-  if (result.response === 1) {
+  if (action === 'quit') {
     app.isQuitting = true;
     app.quit();
   }
@@ -659,36 +432,30 @@ async function promptCloseAction() {
 function createTray() {
   tray = new Tray(createTrayImage());
   tray.setToolTip('串口管理工具');
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '显示窗口', click: showWindow },
-    { label: '立即刷新', click: () => refreshPorts({ notifyDiff: false }) },
-    { type: 'separator' },
-    {
-      label: '退出',
-      click: () => {
-        app.isQuitting = true;
-        app.quit();
-      }
-    }
-  ]));
+  tray.setContextMenu(Menu.buildFromTemplate(createTrayMenuTemplate({
+    showWindow,
+    refresh: () => refreshPorts({ notifyDiff: false }),
+    quit: quitApp
+  })));
   tray.on('click', showWindow);
 }
 
-function showWindow() {
-  if (!mainWindow) {
-    return;
-  }
-
-  mainWindow.show();
-  if (mainWindow.isMinimized()) {
-    mainWindow.restore();
-  }
-  mainWindow.focus();
+function quitApp() {
+  app.isQuitting = true;
+  app.quit();
 }
 
-ipcMain.handle('serial:get-snapshot', () => createSnapshot());
-ipcMain.handle('serial:refresh', () => refreshPorts({ notifyDiff: false }));
-ipcMain.handle('serial:save-alias', (_event, deviceKey, alias) => {
+function showWindow() {
+  showWindowIfAvailable(mainWindow);
+}
+
+function minimizeToTray() {
+  if (mainWindow) {
+    mainWindow.hide();
+  }
+}
+
+function saveAliasHandler(deviceKey, alias) {
   const key = String(deviceKey || '').trim();
   if (!key) {
     return createSnapshot();
@@ -705,8 +472,9 @@ ipcMain.handle('serial:save-alias', (_event, deviceKey, alias) => {
   ports = ports.map((port) => ({ ...port, alias: getAliasForPort(port) }));
   sendSnapshot();
   return createSnapshot();
-});
-ipcMain.handle('serial:save-group', (_event, group) => {
+}
+
+function saveGroupHandler(group) {
   const id = String(group && group.id ? group.id : '').trim() || createGroupId();
   const name = normalizeGroupName(group && group.name);
   const color = normalizeGroupColor(group && group.color);
@@ -724,8 +492,9 @@ ipcMain.handle('serial:save-group', (_event, group) => {
   saveGroups();
   sendSnapshot();
   return createSnapshot();
-});
-ipcMain.handle('serial:delete-group', (_event, groupId) => {
+}
+
+function deleteGroupHandler(groupId) {
   const id = String(groupId || '').trim();
   if (!id) {
     return createSnapshot();
@@ -742,8 +511,9 @@ ipcMain.handle('serial:delete-group', (_event, groupId) => {
   saveGroups();
   sendSnapshot();
   return createSnapshot();
-});
-ipcMain.handle('serial:save-group-order', (_event, groupIds) => {
+}
+
+function saveGroupOrderHandler(groupIds) {
   if (!Array.isArray(groupIds)) {
     return createSnapshot();
   }
@@ -771,8 +541,9 @@ ipcMain.handle('serial:save-group-order', (_event, groupIds) => {
   saveGroups();
   sendSnapshot();
   return createSnapshot();
-});
-ipcMain.handle('serial:assign-group', (_event, deviceKey, portName, groupId) => {
+}
+
+function assignGroupHandler(deviceKey, portName, groupId) {
   const key = String(deviceKey || '').trim() || `port:${String(portName || '').trim()}`;
   const portKey = String(portName || '').trim() ? `port:${String(portName || '').trim()}` : '';
   const id = String(groupId || '').trim();
@@ -792,8 +563,9 @@ ipcMain.handle('serial:assign-group', (_event, deviceKey, portName, groupId) => 
   saveGroups();
   sendSnapshot();
   return createSnapshot();
-});
-ipcMain.handle('serial:save-order', (_event, groupId, portKeys) => {
+}
+
+function saveOrderHandler(groupId, portKeys) {
   const key = String(groupId || 'all').trim() || 'all';
   const allowedKeys = new Set(['all', 'ungrouped', ...groupStore.groups.map((group) => group.id)]);
   if (!allowedKeys.has(key) || !Array.isArray(portKeys)) {
@@ -804,12 +576,28 @@ ipcMain.handle('serial:save-order', (_event, groupId, portKeys) => {
   saveGroups();
   sendSnapshot();
   return createSnapshot();
+}
+
+function clearEventsHandler() {
+  clearEventHistory(eventHistory);
+  sendSnapshot();
+  return createSnapshot();
+}
+
+registerSerialIpcHandlers(ipcMain, {
+  createSnapshot,
+  refreshPorts,
+  saveAlias: saveAliasHandler,
+  saveGroup: saveGroupHandler,
+  deleteGroup: deleteGroupHandler,
+  saveGroupOrder: saveGroupOrderHandler,
+  assignGroup: assignGroupHandler,
+  saveOrder: saveOrderHandler,
+  clearEvents: clearEventsHandler
 });
-ipcMain.handle('window:show', () => showWindow());
-ipcMain.handle('window:minimize-to-tray', () => {
-  if (mainWindow) {
-    mainWindow.hide();
-  }
+registerWindowIpcHandlers(ipcMain, {
+  showWindow,
+  minimizeToTray
 });
 
 app.whenReady().then(async () => {

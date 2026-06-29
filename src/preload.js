@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('serialApi', {
   saveGroupOrder: (groupIds) => ipcRenderer.invoke('serial:save-group-order', groupIds),
   assignGroup: (deviceKey, portName, groupId) => ipcRenderer.invoke('serial:assign-group', deviceKey, portName, groupId),
   saveOrder: (groupId, portKeys) => ipcRenderer.invoke('serial:save-order', groupId, portKeys),
+  clearEvents: () => ipcRenderer.invoke('serial:clear-events'),
   showWindow: () => ipcRenderer.invoke('window:show'),
   minimizeToTray: () => ipcRenderer.invoke('window:minimize-to-tray'),
   onSnapshot: (callback) => {
